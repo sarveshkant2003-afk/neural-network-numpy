@@ -29,6 +29,5 @@ Draw a digit and see the network's prediction, plus a look at what its first lay
 - `code/nn.py` — the network itself: forward pass, activations, weight init/save/load
 - `code/train-minst.py` — loads MNIST, trains, saves weights
 - `app.py` — Streamlit demo
-- `lessons/`, `reference/` — the from-scratch lesson series this was built through
 
 More to come.
