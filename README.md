@@ -2,6 +2,8 @@
 
 A feedforward neural network (784 → 128 → 10) implemented entirely with NumPy — no PyTorch, no TensorFlow. Trained on MNIST to classify handwritten digits, with a Streamlit app to draw a digit and get a live prediction.
 
+I implemented the neural network from scratch using only NumPy to understand what actually happens behind the scenes rather than relying on high-level libraries. This approach helped me gain a clear understanding of the core concepts such as forward propagation, activation functions, loss calculation, backpropagation, gradients, and weight updates. By building each component myself, I was able to see how the mathematical concepts translate into code and develop a stronger foundation for understanding more advanced deep learning frameworks.
+
 ## Setup
 
 ```bash
