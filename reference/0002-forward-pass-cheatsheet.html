@@ -1,0 +1,57 @@
+<title>Forward Pass Cheatsheet</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+  body.lesson { max-width: 38rem; }
+  @media print { body.lesson { padding: 0.5rem; font-size: 0.95rem; } .eyebrow, .ask-agent, .nav-links { display: none; } }
+</style>
+
+<body class="lesson">
+  <p class="eyebrow">Reference &middot; Neural Networks from Scratch</p>
+  <h1>Forward Pass Cheatsheet</h1>
+  <p class="lede">Broadcasting rule and the batched-layer convention, for quick lookup while coding. From <a href="../lessons/0002-forward-pass.html">Lesson 2</a>.</p>
+
+  <h2>Broadcasting: the 3-step check</h2>
+  <ol>
+    <li>Right-align both shapes; pad the shorter with 1s on the left.</li>
+    <li>Each dimension pair must be equal, or one of them must be 1.</li>
+    <li>Result shape = elementwise max of the (padded) shapes.</li>
+  </ol>
+  <table>
+    <tr><th>A</th><th>B</th><th>Result</th></tr>
+    <tr><td><code>(32, 5)</code></td><td><code>(5,)</code> &rarr; <code>(1, 5)</code></td><td><code>(32, 5)</code></td></tr>
+    <tr><td><code>(32, 5)</code></td><td><code>(32, 1)</code></td><td><code>(32, 5)</code></td></tr>
+    <tr><td><code>(3, 1)</code></td><td><code>(1, 2)</code></td><td><code>(3, 2)</code> (outer)</td></tr>
+    <tr><td><code>(32, 5)</code></td><td><code>(4,)</code></td><td>error &mdash; 5 &ne; 4</td></tr>
+  </table>
+  <p class="sidenote"><strong>Common bug:</strong> forgetting <code>keepdims=True</code> on a reduction. <code>Z.max(axis=1)</code> gives shape <code>(32,)</code>, which broadcasts wrong. <code>Z.max(axis=1, keepdims=True)</code> gives <code>(32, 1)</code>, which broadcasts right.</p>
+
+  <h2>Batched layer convention</h2>
+  <table>
+    <tr><th>Symbol</th><th>Shape</th></tr>
+    <tr><td><code>X</code> (input batch)</td><td><code>(batch, n_in)</code></td></tr>
+    <tr><td><code>W</code> (weights)</td><td><code>(n_in, n_out)</code></td></tr>
+    <tr><td><code>b</code> (bias)</td><td><code>(n_out,)</code></td></tr>
+    <tr><td><code>Z = X @ W + b</code></td><td><code>(batch, n_out)</code></td></tr>
+  </table>
+  <p class="sidenote">Note this is <code>W</code> <em>transposed</em> relative to Lesson 1's single-example convention (<code>W</code> was <code>(n_out, n_in)</code> there, used as <code>W @ x</code>).</p>
+
+  <h2>Activation functions</h2>
+  <pre><code>def relu(Z):
+    return np.maximum(Z, 0)
+
+def softmax(Z):
+    shifted = Z - Z.max(axis=1, keepdims=True)
+    exp = np.exp(shifted)
+    return exp / exp.sum(axis=1, keepdims=True)</code></pre>
+  <table>
+    <tr><th>Function</th><th>Where</th><th>Output</th></tr>
+    <tr><td>ReLU</td><td>hidden layers</td><td>same shape, negatives zeroed</td></tr>
+    <tr><td>Softmax</td><td>output layer</td><td>same shape, each row sums to 1</td></tr>
+  </table>
+
+  <h2>A full layer stack (MNIST-shaped)</h2>
+  <pre><code>A1 = relu(X  @ W1 + b1)      # (batch, 784) -> (batch, 128)
+probs = softmax(A1 @ W2 + b2)  # (batch, 128) -> (batch, 10)</code></pre>
+
+  <p class="sidenote">Loss function, and how gradients flow backward through this exact stack, is <a href="../lessons/0003-loss-and-gradients.html">Lesson 3</a> (once written).</p>
+</body>

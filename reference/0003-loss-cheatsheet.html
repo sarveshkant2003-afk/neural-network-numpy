@@ -1,0 +1,39 @@
+<title>Loss Function Cheatsheet</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+  body.lesson { max-width: 38rem; }
+  @media print { body.lesson { padding: 0.5rem; font-size: 0.95rem; } .eyebrow, .ask-agent, .nav-links { display: none; } }
+</style>
+
+<body class="lesson">
+  <p class="eyebrow">Reference &middot; Neural Networks from Scratch</p>
+  <h1>Loss Function Cheatsheet</h1>
+  <p class="lede">Cross-entropy, one-hot labels, and the numpy pattern for both. From <a href="../lessons/0003-loss-function.html">Lesson 3</a>.</p>
+
+  <h2>One-hot encode a batch of labels</h2>
+  <pre><code>Y = np.zeros((batch, n_classes))
+Y[np.arange(batch), class_indices] = 1</code></pre>
+
+  <h2>Cross-entropy loss</h2>
+  <p style="text-align:center; font-size:1.1rem;">L = &minus; &sum;<sub>k</sub> y<sub>k</sub> log(p<sub>k</sub>) &nbsp;=&nbsp; &minus;log(p<sub>correct class</sub>)</p>
+  <pre><code>def cross_entropy(P, Y, eps=1e-12):
+    P = np.clip(P, eps, 1 - eps)
+    return np.mean(-np.sum(Y * np.log(P), axis=1))</code></pre>
+  <table>
+    <tr><th>Predicted prob. of correct class</th><th>Loss contribution</th></tr>
+    <tr><td>&rarr; 1 (confident, correct)</td><td>&rarr; 0</td></tr>
+    <tr><td>0.5</td><td>0.69</td></tr>
+    <tr><td>&rarr; 0 (confident, wrong)</td><td>&rarr; &infin;</td></tr>
+  </table>
+
+  <h2>Why not accuracy</h2>
+  <p>Accuracy's gradient is zero almost everywhere — nudging a weight slightly almost never flips a prediction. Cross-entropy changes continuously with every probability shift, so gradient descent always has a signal to follow.</p>
+
+  <h2>Numerical stability checklist</h2>
+  <ul>
+    <li>Clip probabilities away from exactly 0 and 1 before <code>log</code>.</li>
+    <li>Subtract the row max before <code>exp</code> in softmax (Lesson 2) — keeps values from overflowing before they even reach the loss.</li>
+  </ul>
+
+  <p class="sidenote">Deriving the gradient of this loss back through softmax is <a href="../lessons/0004-backprop-output-layer.html">Lesson 4</a> — it simplifies beautifully to <code>probs - Y</code> at the output layer.</p>
+</body>

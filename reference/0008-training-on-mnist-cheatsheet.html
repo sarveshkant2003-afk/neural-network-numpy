@@ -1,0 +1,79 @@
+<title>Training on MNIST Cheatsheet</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+  body.lesson { max-width: 38rem; }
+  @media print { body.lesson { padding: 0.5rem; font-size: 0.95rem; } .eyebrow, .ask-agent, .nav-links { display: none; } }
+</style>
+
+<body class="lesson">
+  <p class="eyebrow">Reference &middot; Neural Networks from Scratch</p>
+  <h1>Training on MNIST Cheatsheet</h1>
+  <p class="lede">The full recipe, end to end. From <a href="../lessons/0008-training-on-mnist.html">Lesson 8</a>.</p>
+
+  <h2>Architecture</h2>
+  <table>
+    <tr><th>Layer</th><th>Size</th></tr>
+    <tr><td>Input</td><td>784 (fixed by data)</td></tr>
+    <tr><td>Hidden</td><td>128 (your choice)</td></tr>
+    <tr><td>Output</td><td>10 (fixed by task)</td></tr>
+  </table>
+
+  <h2>Scaled weight init</h2>
+  <pre><code>def init_weights(n_in, n_out, rng):
+    return rng.standard_normal((n_in, n_out)) * np.sqrt(1.0 / n_in)</code></pre>
+  <p class="sidenote">More inputs &rarr; smaller individual weights, so their sum stays reasonable. A simplified Xavier/He init.</p>
+
+  <h2>Mini-batching</h2>
+  <pre><code>def iterate_batches(X, Y, batch_size, rng):
+    n = X.shape[0]
+    order = rng.permutation(n)
+    for start in range(0, n, batch_size):
+        idx = order[start:start + batch_size]
+        yield X[idx], Y[idx]</code></pre>
+  <table>
+    <tr><th>Term</th><th>Means</th></tr>
+    <tr><td>Batch</td><td>one small chunk of the data, e.g. 128 images</td></tr>
+    <tr><td>Step</td><td>one forward + backward + update, on one batch</td></tr>
+    <tr><td>Epoch</td><td>one full pass over all batches &mdash; the whole dataset once</td></tr>
+  </table>
+
+  <h2>The full loop</h2>
+  <pre><code>for epoch in range(epochs):
+    for Xb, Yb in iterate_batches(X_train, Y_train, batch_size, rng):
+        # forward (Lesson 2)
+        Z1 = Xb @ W1 + b1; A1 = relu(Z1)
+        Z2 = A1 @ W2 + b2; P = softmax(Z2)
+        # backward (Lessons 4-5)
+        n = Xb.shape[0]
+        dZ2 = (P - Yb) / n
+        dW2 = A1.T @ dZ2; db2 = dZ2.sum(axis=0)
+        dA1 = dZ2 @ W2.T; dZ1 = dA1 * (Z1 > 0)
+        dW1 = Xb.T @ dZ1; db1 = dZ1.sum(axis=0)
+        # update (Lesson 6)
+        W1 -= lr * dW1; b1 -= lr * db1
+        W2 -= lr * dW2; b2 -= lr * db2</code></pre>
+
+  <h2>Timing (why bother guessing when you can just print it)</h2>
+  <pre><code>import time
+training_start = time.time()
+for epoch in range(epochs):
+    epoch_start = time.time()
+    ...   # batches loop, unchanged
+    print(f"...  ({time.time() - epoch_start:.1f}s)")
+print(f"total: {time.time() - training_start:.1f}s")</code></pre>
+  <p class="sidenote">60,000 images &divide; 128 batch size &asymp; 469 updates per epoch. 8 epochs &asymp; 3,750 total updates.</p>
+
+  <h2>Evaluate (never train on this data)</h2>
+  <pre><code>A1_test = relu(X_test @ W1 + b1)
+P_test  = softmax(A1_test @ W2 + b2)
+test_acc = (P_test.argmax(axis=1) == y_test).mean()</code></pre>
+
+  <h2>Rough sanity targets</h2>
+  <table>
+    <tr><th>Symptom</th><th>Likely issue</th></tr>
+    <tr><td>Loss is <code>nan</code></td><td>learning rate too high, or forgot to clip in cross-entropy</td></tr>
+    <tr><td>Accuracy stuck near 10%</td><td>network is guessing randomly &mdash; check label encoding, data loading</td></tr>
+    <tr><td>Train accuracy high, test accuracy much lower</td><td>possible overfitting &mdash; more data or fewer epochs may help</td></tr>
+    <tr><td>Both accuracies in the 90s%</td><td>working as intended</td></tr>
+  </table>
+</body>

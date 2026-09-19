@@ -1,0 +1,113 @@
+<title>The Loss Function</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/quiz.js" defer></script>
+
+<body class="lesson">
+  <p class="eyebrow">Lesson 3 &middot; Neural Networks from Scratch</p>
+  <h1>The Loss Function: Measuring Wrongness</h1>
+  <p class="lede">Your network from Lesson 2 already produces probabilities for each class. But "produces probabilities" isn't the same as "produces <em>good</em> probabilities" — training means nudging the weights to make them better. Before you can nudge anything, you need one number that says how wrong the network currently is. That number is the loss.</p>
+
+  <h2>Why a single scalar</h2>
+  <p>Gradient descent — the algorithm that will actually train the network — needs to compute a gradient, and a gradient is only defined for a function that outputs a single scalar. So however many examples are in the batch, however many output classes there are, everything has to collapse into <em>one number</em>: how wrong was the network, on average, across this batch?</p>
+  <p class="sidenote">Accuracy (percent correct) is also a single scalar, but it's useless for training: it's flat almost everywhere (nudging a weight slightly rarely flips a prediction from wrong to right) so its gradient is zero almost everywhere. Loss needs to be <em>smooth</em> — it should change a little every time a probability changes a little, even if the final prediction doesn't flip. That's the real reason cross-entropy, not accuracy, drives training.</p>
+
+  <h2>One-hot labels</h2>
+  <p>A label like "this digit is a 3" needs to be in array form to compare against the network's output. The standard encoding is <strong>one-hot</strong>: a vector of zeros with a single 1 at the correct class's index.</p>
+  <pre><code># digit 3, out of 10 classes
+y = np.array([0, 0, 0, 1, 0, 0, 0, 0, 0, 0])
+
+# a batch of labels [3, 0, 7] one-hot encoded -> shape (3, 10)
+Y = np.zeros((3, 10))
+Y[np.arange(3), [3, 0, 7]] = 1</code></pre>
+  <p class="sidenote"><code>Y[np.arange(3), [3, 0, 7]]</code> is numpy's <em>fancy indexing</em>: it pairs up the two index arrays element-by-element — <code>(0,3)</code>, <code>(1,0)</code>, <code>(2,7)</code> — and sets exactly those three positions to 1. Worth running in isolation to see it happen; it's a common pattern for label encoding.</p>
+
+  <h2>Cross-entropy loss</h2>
+  <p>For one example, with true one-hot label <code>y</code> and predicted probabilities <code>p</code> (softmax output from Lesson 2):</p>
+  <p style="text-align:center; font-size:1.15rem;">L = &minus; &sum;<sub>k</sub> y<sub>k</sub> log(p<sub>k</sub>)</p>
+  <p>Because <code>y</code> is one-hot, every term in that sum is zero except the one at the correct class index <code>c</code>. So this collapses to just <code>L = -log(p_c)</code> — the negative log of the probability the network assigned to the <em>correct</em> answer.</p>
+  <table>
+    <tr><th><code>p_c</code> (predicted prob. of correct class)</th><th><code>L = -log(p_c)</code></th></tr>
+    <tr><td>0.99 (very confident, correct)</td><td>0.01 &mdash; almost no loss</td></tr>
+    <tr><td>0.5 (unsure)</td><td>0.69</td></tr>
+    <tr><td>0.01 (very confident, <em>wrong</em>)</td><td>4.6 &mdash; heavily penalized</td></tr>
+  </table>
+  <p>That asymptote as <code>p_c &rarr; 0</code> is the point: cross-entropy punishes confident wrong answers far more than it punishes honest uncertainty. This is also why it's a smoother training signal than accuracy — <code>-log(p_c)</code> keeps changing continuously as <code>p_c</code> moves, long before it crosses the 0.5 threshold that would flip the prediction.</p>
+
+  <h3>Batched, in numpy</h3>
+  <p>For a batch, average the per-example loss. <code>P</code> and <code>Y</code> both have shape <code>(batch, n_classes)</code>:</p>
+  <pre><code>def cross_entropy(P, Y, eps=1e-12):
+    P = np.clip(P, eps, 1 - eps)          # avoid log(0)
+    per_example = -np.sum(Y * np.log(P), axis=1)   # shape (batch,)
+    return np.mean(per_example)                     # scalar</code></pre>
+  <p><code>Y * np.log(P)</code> is element-wise (same shapes, no broadcasting needed) — it zeroes out every term except the correct class, exactly as in the math above. <code>axis=1</code> sums each row down to one number per example; <code>np.mean</code> collapses the batch to the single scalar gradient descent needs.</p>
+  <p class="sidenote">The <code>np.clip</code> matters in practice: if the network is ever <em>completely</em> wrong with probability exactly 0 on the correct class, <code>log(0)</code> is <code>-inf</code> and the whole training run breaks. Clipping keeps every probability a hair away from 0 and 1.</p>
+
+  <a class="primary-source" href="http://neuralnetworksanddeeplearning.com/chap3.html" target="_blank" rel="noopener">
+    <span class="label">Primary source</span>
+    <span class="title">Neural Networks and Deep Learning, Chapter 3 &mdash; Michael Nielsen</span>
+    <span class="why">Read "Introducing the cross-entropy cost function," through the intuition for why it fixes the "learning slowdown" problem. Nielsen derives it for a single sigmoid output neuron rather than softmax over multiple classes — the shape differs, the motivation (a smoother gradient signal near confident-wrong predictions) is identical.</span>
+  </a>
+
+  <div class="callout win">
+    <p class="callout-title">Your tangible win</p>
+    <p>Extend <code>code/network_forward.py</code> (or copy it to <code>code/loss.py</code>): after computing <code>probs</code> from your <code>4 &rarr; 5 &rarr; 3</code> network, generate random one-hot labels for the batch of 8, and compute the loss.</p>
+    <pre><code># ...after computing `probs` as in Lesson 2...
+
+def cross_entropy(P, Y, eps=1e-12):
+    P = np.clip(P, eps, 1 - eps)
+    return np.mean(-np.sum(Y * np.log(P), axis=1))
+
+n_classes = probs.shape[1]
+true_classes = np.random.randint(0, n_classes, size=batch)
+Y = np.zeros((batch, n_classes))
+Y[np.arange(batch), true_classes] = 1
+
+loss = cross_entropy(probs, Y)
+print("true classes:", true_classes)
+print("loss:", loss)</code></pre>
+    <p>Run it a few times (new <code>np.random.seed</code> or none at all). Then try this deliberately: manually set one row of <code>probs</code> to put 0.99 on the <em>correct</em> class before computing loss, and separately try 0.99 on a <em>wrong</em> class. Watch the loss swing from near-zero to large — that's the training signal you'll differentiate in the next lesson.</p>
+  </div>
+
+  <h2>Check your understanding</h2>
+
+  <div class="quiz">
+    <p class="q">1. Why is cross-entropy loss used to train the network instead of plain accuracy?</p>
+    <div class="options">
+      <button class="opt" data-correct="true">Accuracy has near-zero gradient</button>
+      <button class="opt">Accuracy is harder to compute</button>
+      <button class="opt">Cross-entropy is always smaller</button>
+      <button class="opt">Accuracy only works on images</button>
+    </div>
+    <p class="feedback"></p>
+  </div>
+
+  <div class="quiz">
+    <p class="q">2. The network assigns probability 0.02 to the correct class. What does this say about the loss for that example?</p>
+    <div class="options">
+      <button class="opt" data-correct="true">It will be large</button>
+      <button class="opt">It will be zero</button>
+      <button class="opt">It will be negative</button>
+      <button class="opt">It cannot be computed</button>
+    </div>
+    <p class="feedback"></p>
+  </div>
+
+  <div class="quiz">
+    <p class="q">3. In <code>cross_entropy</code>, <code>P</code> and <code>Y</code> both have shape <code>(batch, n_classes)</code>. What shape does <code>Y * np.log(P)</code> have?</p>
+    <div class="options">
+      <button class="opt" data-correct="true">Same shape, batch by classes</button>
+      <button class="opt">A single scalar value</button>
+      <button class="opt">Shape batch only, one axis</button>
+      <button class="opt">Shape classes by classes matrix</button>
+    </div>
+    <p class="feedback"></p>
+  </div>
+
+  <p class="ask-agent"><strong>Stuck, or curious about more?</strong> Ask your agent &mdash; e.g. "why does clipping not distort the loss much?" or "what would mean squared error do differently here?" That's what it's here for.</p>
+
+  <div class="nav-links">
+    <a href="0002-forward-pass.html">&larr; Lesson 2: The Forward Pass</a>
+    <a href="../reference/0003-loss-cheatsheet.html">Reference: Loss Function Cheatsheet</a>
+    <a href="0004-backprop-output-layer.html">Next: Lesson 4, backpropagation &#8594;</a>
+  </div>
+</body>

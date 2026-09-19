@@ -1,0 +1,51 @@
+<title>Backprop Hidden-Layer Cheatsheet</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+  body.lesson { max-width: 38rem; }
+  @media print { body.lesson { padding: 0.5rem; font-size: 0.95rem; } .eyebrow, .ask-agent, .nav-links { display: none; } }
+</style>
+
+<body class="lesson">
+  <p class="eyebrow">Reference &middot; Neural Networks from Scratch</p>
+  <h1>Backprop Hidden-Layer Cheatsheet</h1>
+  <p class="lede">The complete backward pass for a 2-layer network, output to input. From <a href="../lessons/0005-backprop-hidden-layer.html">Lesson 5</a>.</p>
+
+  <h2>The full backward pass</h2>
+  <pre><code>dZ2 = (P - Y) / batch
+dW2 = A1.T @ dZ2
+db2 = dZ2.sum(axis=0)
+
+dA1 = dZ2 @ W2.T
+dZ1 = dA1 * (Z1 > 0)
+dW1 = X.T @ dZ1
+db1 = dZ1.sum(axis=0)</code></pre>
+
+  <h2>Two kinds of backward step</h2>
+  <table>
+    <tr><th>Forward op</th><th>Backward op</th><th>Mixes units?</th></tr>
+    <tr><td>Matmul (<code>@</code>)</td><td>Matmul with a transpose</td><td>Yes &mdash; weighted combination</td></tr>
+    <tr><td>Element-wise (ReLU, etc.)</td><td>Element-wise (<code>*</code>)</td><td>No &mdash; each unit independent</td></tr>
+  </table>
+
+  <h2>Transpose-and-flip rule for matmul gradients</h2>
+  <p>Given <code>Y = X @ W</code>, and an incoming gradient <code>dY</code> (same shape as <code>Y</code>):</p>
+  <pre><code>dX = dY @ W.T
+dW = X.T @ dY</code></pre>
+  <p>Whichever input you're not solving for gets transposed; shape reasoning confirms which side it goes on.</p>
+
+  <h2>ReLU derivative</h2>
+  <pre><code>relu'(z) = 1 if z > 0 else 0
+dZ = dA * (Z > 0)</code></pre>
+  <p class="sidenote"><strong>Dead ReLU:</strong> if <code>Z &lt; 0</code> for a unit across the whole batch, its gradient is exactly zero and it stops learning. Watch for this during real training.</p>
+
+  <h2>Gradients needed for one training step</h2>
+  <table>
+    <tr><th>Parameter</th><th>Gradient</th><th>Shape</th></tr>
+    <tr><td><code>W1</code></td><td><code>dW1</code></td><td><code>(n_in, n_hidden)</code></td></tr>
+    <tr><td><code>b1</code></td><td><code>db1</code></td><td><code>(n_hidden,)</code></td></tr>
+    <tr><td><code>W2</code></td><td><code>dW2</code></td><td><code>(n_hidden, n_out)</code></td></tr>
+    <tr><td><code>b2</code></td><td><code>db2</code></td><td><code>(n_out,)</code></td></tr>
+  </table>
+
+  <p class="sidenote">Turning these into weight updates and looping over real MNIST data is <a href="../lessons/0006-training-loop.html">Lesson 6</a>.</p>
+</body>

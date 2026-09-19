@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.DS_Store
+.venv/
+venv/
+.claude/
+
+# personal learning scratchpad, not part of the shipped project
+NOTES.md
+learning-records/

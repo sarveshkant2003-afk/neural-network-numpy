@@ -1,0 +1,228 @@
+<title>Training on MNIST</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/quiz.js" defer></script>
+
+<body class="lesson">
+  <p class="eyebrow">Lesson 8 &middot; Neural Networks from Scratch &middot; The Finale</p>
+  <h1>Training on MNIST, For Real</h1>
+  <p class="lede">This is the one everything else was leading to. Same training loop as Lesson 6. Same data pipeline as Lesson 7. Just a bigger network, and real handwritten digits instead of made-up points. By the end of this lesson you'll have a neural network — built entirely with numpy, no shortcuts — that can look at a picture of a handwritten digit and say what it is.</p>
+
+  <h2>Sizing the network</h2>
+  <p>The input and output sizes aren't a choice — they're fixed by the data. Only the hidden layer size is up to you:</p>
+  <table>
+    <tr><th>Layer</th><th>Size</th><th>Why</th></tr>
+    <tr><td>Input</td><td>784</td><td>one number per pixel — fixed by the data</td></tr>
+    <tr><td>Hidden</td><td>128</td><td>your choice — enough room to learn useful patterns, not so much it's slow</td></tr>
+    <tr><td>Output</td><td>10</td><td>one per digit, 0 through 9 — fixed by the task</td></tr>
+  </table>
+  <p>128 isn't derived from anything — it's a well-tested default that works fine here. If you're curious later, try 32 or 256 and see what changes.</p>
+
+  <h2>A small but important fix to weight initialization</h2>
+  <p>Every layer so far used <code>randn(...) * 0.1</code> for its starting weights. That was fine with 4 inputs. With 784 inputs feeding into one hidden neuron, it isn't: that neuron sums up 784 numbers, each already a small random weight times a pixel value. Even small values, added 784 times, can land far from zero — pushing the neuron's output to an extreme before training has even started.</p>
+  <p>The fix is simple: the more inputs a neuron has, the smaller each individual weight should be, so their sum stays in a reasonable range. Scale by <code>1/sqrt(number of inputs)</code> instead of a fixed number:</p>
+  <pre><code>def init_weights(n_in, n_out, rng):
+    return rng.standard_normal((n_in, n_out)) * np.sqrt(1.0 / n_in)</code></pre>
+  <p class="sidenote">If you search for this later, it's a simplified version of what's usually called <strong>Xavier</strong> or <strong>He initialization</strong>. You don't need the full theory to use the one-line version above — just the intuition that more incoming connections means each one should start smaller.</p>
+
+  <h2>Mini-batches: training in smaller chunks</h2>
+  <p>Every training step so far has run the <em>entire</em> dataset through the network before updating once. With 60,000 images that still works, but it means only one update per full pass through the data — slow progress.</p>
+  <p>The standard fix: instead of one giant batch of 60,000, split the data into many small batches — say, 128 images each — and update the weights after <em>every</em> small batch. One full pass through all the data (now made of many small batches) is called an <strong>epoch</strong>. You get roughly 470 updates per epoch instead of 1, so the network improves much faster in the same amount of time.</p>
+  <pre><code>def iterate_batches(X, Y, batch_size, rng):
+    n = X.shape[0]
+    order = rng.permutation(n)          # new random order each epoch
+    for start in range(0, n, batch_size):
+        idx = order[start:start + batch_size]
+        yield X[idx], Y[idx]</code></pre>
+  <p class="sidenote">Nothing about the forward pass, loss, or backward pass changes — a batch of 128 flows through exactly the same code as a batch of 8 did in Lesson 6. Only the size of <code>batch</code> changes, and everything you wrote already handles that correctly, because it was never hardcoded to a specific size.</p>
+
+  <div class="callout">
+    <p class="callout-title">Epoch, unpacked</p>
+    <p>Think of the 60,000 training images as a stack of flashcards. An <strong>epoch</strong> is one full pass through that entire stack, once. With a batch size of 128, one epoch is made of about 469 small batches (60,000 &divide; 128), and each batch triggers one weight update. So "8 epochs" doesn't mean 8 updates — it means the network sees every image 8 separate times (in a freshly shuffled order each time), with roughly 469 updates happening <em>within</em> each pass. Over 8 epochs that's around 3,750 total updates to the weights.</p>
+  </div>
+
+  <h2>How long will this actually take?</h2>
+  <p>Two very different phases:</p>
+  <ul>
+    <li><strong>Loading the data (one-time):</strong> <code>fetch_openml</code> downloads about 50MB the first time you run it — usually 30 seconds to a couple of minutes, depending on your connection. After that it's cached on disk and loads in a couple seconds.</li>
+    <li><strong>Actual training (8 epochs):</strong> this is small matrix math, and numpy is fast at it. On a normal modern laptop, expect well under a minute total — but the honest answer is "it depends on your machine," which is exactly why the script below prints its own timing instead of asking you to guess.</li>
+  </ul>
+  <pre><code>import time
+
+training_start = time.time()
+for epoch in range(epochs):
+    epoch_start = time.time()
+    for Xb, Yb in iterate_batches(X_train, Y_train, batch_size, rng):
+        ...   # forward, backward, update -- unchanged
+
+    epoch_time = time.time() - epoch_start
+    print(f"epoch {epoch+1}/{epochs}  loss {loss:.4f}  train acc {acc:.3f}  ({epoch_time:.1f}s)")
+
+total_time = time.time() - training_start
+print(f"training finished in {total_time:.1f}s total ({total_time/epochs:.1f}s/epoch average)")</code></pre>
+  <p class="sidenote">This is already folded into the full script below.</p>
+
+  <a class="primary-source" href="http://neuralnetworksanddeeplearning.com/chap1.html" target="_blank" rel="noopener">
+    <span class="label">Primary source</span>
+    <span class="title">Neural Networks and Deep Learning, Chapter 1 &mdash; "Implementing our network to classify digits"</span>
+    <span class="why">This is the exact exercise this lesson is built on: Nielsen builds a numpy network trained on MNIST with mini-batch gradient descent, from scratch. His code differs in small ways (sigmoid neurons, his own matrix convention) but the shape of the solution is identical to what you're about to write.</span>
+  </a>
+
+  <div class="callout win">
+    <p class="callout-title">Your tangible win &mdash; the mission target</p>
+    <p>Create <code>code/train_mnist.py</code>. It's Lesson 7's loading code, Lesson 6's training loop, and the two changes above, combined:</p>
+    <pre><code>import time
+import numpy as np
+from sklearn.datasets import fetch_openml
+
+def relu(Z):
+    return np.maximum(Z, 0)
+
+def softmax(Z):
+    shifted = Z - Z.max(axis=1, keepdims=True)
+    exp = np.exp(shifted)
+    return exp / exp.sum(axis=1, keepdims=True)
+
+def cross_entropy(P, Y, eps=1e-12):
+    P = np.clip(P, eps, 1 - eps)
+    return np.mean(-np.sum(Y * np.log(P), axis=1))
+
+def init_weights(n_in, n_out, rng):
+    return rng.standard_normal((n_in, n_out)) * np.sqrt(1.0 / n_in)
+
+def iterate_batches(X, Y, batch_size, rng):
+    n = X.shape[0]
+    order = rng.permutation(n)
+    for start in range(0, n, batch_size):
+        idx = order[start:start + batch_size]
+        yield X[idx], Y[idx]
+
+# --- load and prepare the data (Lesson 7) ---
+X, y = fetch_openml('mnist_784', version=1, return_X_y=True, as_frame=False)
+y = y.astype(int)
+X = X / 255.0
+
+rng = np.random.default_rng(0)
+shuffle = rng.permutation(len(X))
+X, y = X[shuffle], y[shuffle]
+
+n_test = 10000
+X_train, X_test = X[:-n_test], X[-n_test:]
+y_train, y_test = y[:-n_test], y[-n_test:]
+
+Y_train = np.zeros((len(y_train), 10))
+Y_train[np.arange(len(y_train)), y_train] = 1
+
+# --- set up the network ---
+n_in, n_hidden, n_out = 784, 128, 10
+W1 = init_weights(n_in, n_hidden, rng)
+b1 = np.zeros(n_hidden)
+W2 = init_weights(n_hidden, n_out, rng)
+b2 = np.zeros(n_out)
+
+lr = 0.5
+batch_size = 128
+epochs = 8
+
+# --- train, with a timer so you can see how long each epoch (and the whole run) takes ---
+training_start = time.time()
+
+for epoch in range(epochs):
+    epoch_start = time.time()
+
+    for Xb, Yb in iterate_batches(X_train, Y_train, batch_size, rng):
+        Z1 = Xb @ W1 + b1
+        A1 = relu(Z1)
+        Z2 = A1 @ W2 + b2
+        P  = softmax(Z2)
+
+        n = Xb.shape[0]
+        dZ2 = (P - Yb) / n
+        dW2 = A1.T @ dZ2
+        db2 = dZ2.sum(axis=0)
+        dA1 = dZ2 @ W2.T
+        dZ1 = dA1 * (Z1 > 0)
+        dW1 = Xb.T @ dZ1
+        db1 = dZ1.sum(axis=0)
+
+        W1 -= lr * dW1; b1 -= lr * db1
+        W2 -= lr * dW2; b2 -= lr * db2
+
+    # check progress once per epoch, on the full training set
+    A1_full = relu(X_train @ W1 + b1)
+    P_full  = softmax(A1_full @ W2 + b2)
+    loss = cross_entropy(P_full, Y_train)
+    acc  = (P_full.argmax(axis=1) == y_train).mean()
+
+    epoch_time = time.time() - epoch_start
+    print(f"epoch {epoch+1}/{epochs}  loss {loss:.4f}  train acc {acc:.3f}  ({epoch_time:.1f}s)")
+
+total_time = time.time() - training_start
+print(f"\ntraining finished in {total_time:.1f}s total ({total_time/epochs:.1f}s/epoch average)")
+
+# --- the moment of truth: accuracy on data the network never saw ---
+A1_test = relu(X_test @ W1 + b1)
+P_test  = softmax(A1_test @ W2 + b2)
+test_acc = (P_test.argmax(axis=1) == y_test).mean()
+print(f"\nfinal test accuracy: {test_acc:.3f}")</code></pre>
+    <p>Run it. It'll take a few minutes (training happens locally on your CPU). Watch the loss fall and accuracy climb, epoch by epoch — then look at the final line. A working implementation typically lands somewhere in the low-to-mid 90s% test accuracy. If you get a number in that range, you've built and trained a real neural network from nothing but numpy.</p>
+  </div>
+
+  <h2>Check your understanding</h2>
+
+  <div class="quiz">
+    <p class="q">1. Why split training data into mini-batches instead of using all 60,000 images every step?</p>
+    <div class="options">
+      <button class="opt" data-correct="true">More weight updates per epoch</button>
+      <button class="opt">Mini-batches guarantee higher accuracy</button>
+      <button class="opt">Full-batch training is impossible here</button>
+      <button class="opt">Mini-batches remove need for a loss</button>
+    </div>
+    <p class="feedback"></p>
+  </div>
+
+  <div class="quiz">
+    <p class="q">2. Why scale <code>W1</code>'s random values by <code>1/sqrt(784)</code> instead of a fixed number like 0.1?</p>
+    <div class="options">
+      <button class="opt" data-correct="true">Keeps the large input count in check</button>
+      <button class="opt">It matches the softmax output size</button>
+      <button class="opt">ReLU requires exactly this scale factor</button>
+      <button class="opt">It makes the mini-batch loop run faster</button>
+    </div>
+    <p class="feedback"></p>
+  </div>
+
+  <div class="quiz">
+    <p class="q">3. Why does the final test accuracy matter more than the training accuracy printed each epoch?</p>
+    <div class="options">
+      <button class="opt" data-correct="true">It shows performance on unseen data</button>
+      <button class="opt">It is mathematically always the higher one</button>
+      <button class="opt">It continues to train the network further</button>
+      <button class="opt">It replaces the need for cross-entropy loss</button>
+    </div>
+    <p class="feedback"></p>
+  </div>
+
+  <div class="quiz">
+    <p class="q">4. With 60,000 training images and a batch size of 128, roughly how many weight updates happen in a single epoch?</p>
+    <div class="options">
+      <button class="opt" data-correct="true">About four hundred sixty nine</button>
+      <button class="opt">Exactly one, at epoch's end</button>
+      <button class="opt">Sixty thousand, one per image</button>
+      <button class="opt">Eight, matching the epoch count</button>
+    </div>
+    <p class="feedback"></p>
+  </div>
+
+  <p class="ask-agent"><strong>Stuck, or curious about more?</strong> Ask your agent &mdash; e.g. "my accuracy is stuck around 60%, what should I check first?" or "how would I add a second hidden layer to this?" That's what it's here for.</p>
+
+  <div class="callout" id="you-ve-hit-the-mission-target">
+    <p class="callout-title">You've hit the mission target</p>
+    <p>This is the goal set out in <a href="../MISSION.md">MISSION.md</a> when this workspace started: a working MNIST digit classifier, built entirely with numpy. From here, a few natural directions — tell your agent which sounds interesting, or suggest your own: pushing accuracy higher (more epochs, a second hidden layer, tuning the learning rate), gradient checking (numerically verifying the backprop derivations from Lessons 4-5 are exactly correct), or taking the working implementation to <a href="https://reddit.com/r/learnmachinelearning" target="_blank" rel="noopener">r/learnmachinelearning</a> for outside feedback, per <a href="../RESOURCES.md">RESOURCES.md</a>.</p>
+  </div>
+
+  <div class="nav-links">
+    <a href="0007-mnist-data.html">&larr; Lesson 7: Loading MNIST</a>
+    <a href="../reference/0008-training-on-mnist-cheatsheet.html">Reference: Training on MNIST Cheatsheet</a>
+    <a href="0009-visualizing-training.html">Next: Lesson 9, visualizing training &#8594;</a>
+  </div>
+</body>

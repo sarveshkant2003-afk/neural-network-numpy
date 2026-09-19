@@ -1,0 +1,134 @@
+<title>Backprop: Hidden Layer</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/quiz.js" defer></script>
+
+<body class="lesson">
+  <p class="eyebrow">Lesson 5 &middot; Neural Networks from Scratch</p>
+  <h1>Backpropagation, Part 2: The Hidden Layer</h1>
+  <p class="lede">Lesson 4 got you <code>dZ2</code>, <code>dW2</code>, <code>db2</code> — everything needed to update the output layer. But <code>W1</code> and <code>b1</code> still have no gradient. This lesson pushes the same chain rule one layer further back, through <code>W2</code> and then through ReLU, to finish the backward pass. Once this is done, you'll have every gradient needed for one full training step.</p>
+
+  <h2>Where the gradient signal is now</h2>
+  <p>Recall the forward equations and what Lesson 4 already computed:</p>
+  <pre><code>Z1 = X @ W1 + b1
+A1 = relu(Z1)
+Z2 = A1 @ W2 + b2      <span style="color:var(--ink-soft)">&larr; already have dZ2 = (P - Y) / batch, dW2, db2</span>
+P  = softmax(Z2)</code></pre>
+  <p>To reach <code>W1</code>, the chain rule has to pass backward through two more functions: the matrix multiply <code>A1 @ W2</code>, and the ReLU inside <code>A1 = relu(Z1)</code>. Two steps, two different kinds of operation — and that difference matters.</p>
+
+  <h2>Step 1 &mdash; through the matmul: dZ2 &rarr; dA1</h2>
+  <p>Same shape-reasoning trick as Lesson 4. <code>Z2 = A1 @ W2 + b2</code>, and we want <code>dA1</code>, which must have the same shape as <code>A1</code>.</p>
+  <table>
+    <tr><th>Quantity</th><th>Shape</th></tr>
+    <tr><td><code>dZ2</code></td><td><code>(batch, n_out)</code></td></tr>
+    <tr><td><code>W2</code></td><td><code>(n_hidden, n_out)</code></td></tr>
+    <tr><td><code>A1</code>, so <code>dA1</code></td><td><code>(batch, n_hidden)</code></td></tr>
+  </table>
+  <details class="derive">
+    <summary>Try it yourself first: what combination of dZ2, W2 (and transposes) gives shape (batch, n_hidden)? Then reveal</summary>
+    <pre><code>dA1 = dZ2 @ W2.T
+# (batch, n_out) @ (n_out, n_hidden) -> (batch, n_hidden)  &#10003;</code></pre>
+    <p>Notice the pattern versus Lesson 4's <code>dW2 = A1.T @ dZ2</code>: same two matrices, same operation, but here it's the <em>other</em> one that gets transposed, because this time we're solving for the other side of the original multiplication. Whichever of <code>A1</code> or <code>W2</code> you're <em>not</em> computing the gradient for gets transposed and left-multiplied (or right-multiplied) against the incoming gradient — the shapes tell you which.</p>
+  </details>
+
+  <h2>Step 2 &mdash; through ReLU: dA1 &rarr; dZ1</h2>
+  <p>This step is different in kind. <code>A1 = relu(Z1)</code> is not a matrix multiply — it's an <em>element-wise</em> function, applied independently to every entry. So its backward step is element-wise too, not a matmul at all.</p>
+  <details class="derive">
+    <summary>Try it yourself first: what is d(relu(z))/dz? Then reveal</summary>
+    <p><code>relu(z) = max(z, 0)</code>. For <code>z &gt; 0</code>, <code>relu(z) = z</code>, so the slope is 1. For <code>z &lt; 0</code>, <code>relu(z) = 0</code> — constant, slope 0. (At exactly <code>z = 0</code> the function has a kink; the convention is to just pick 0 or 1 there, it never matters in practice.)</p>
+    <pre><code>relu'(z) = 1  if z > 0
+relu'(z) = 0  if z <= 0</code></pre>
+    <p>A step function: it's a <em>gate</em> that either passes the incoming gradient through unchanged, or blocks it to zero — one decision per entry, independently.</p>
+  </details>
+  <p>By the chain rule, <code>dZ1</code> is <code>dA1</code> multiplied <em>element-wise</em> by that gate:</p>
+  <pre><code>dZ1 = dA1 * (Z1 > 0)   # element-wise -- NOT @</code></pre>
+  <p><code>(Z1 > 0)</code> produces a same-shape array of <code>True</code>/<code>False</code>, which numpy treats as 1/0 when multiplied. Wherever a hidden unit was "off" (negative <code>Z1</code>) during the forward pass, its gradient is zeroed here — that unit contributed nothing to the output, so it gets no blame and no credit.</p>
+
+  <div class="callout">
+    <p class="callout-title">The distinction worth internalizing</p>
+    <p>Backprop through a <strong>linear layer</strong> (matmul) mixes gradients across units — every output unit's gradient depends on a weighted combination of others via <code>W2.T</code>. Backprop through an <strong>element-wise activation</strong> never mixes anything — each unit's gradient only ever depends on itself. Keep these two kinds of step visually distinct in your head (and in your code, <code>@</code> vs <code>*</code>) or shape bugs get much harder to spot.</p>
+  </div>
+
+  <h2>Step 3 &mdash; finish it: dZ1 &rarr; dW1, db1</h2>
+  <p>Exactly the same pattern as Lesson 4's output layer, one layer earlier — <code>Z1 = X @ W1 + b1</code>:</p>
+  <pre><code>dW1 = X.T @ dZ1        # (n_in, batch) @ (batch, n_hidden) -> (n_in, n_hidden)
+db1 = dZ1.sum(axis=0)  # broadcast forward -> sum backward, shape (n_hidden,)</code></pre>
+
+  <h2>The complete backward pass</h2>
+  <p>Chained together, here is the whole thing, output to input &mdash; notice it's a mirror image of the forward pass, run in reverse:</p>
+  <pre><code>dZ2 = (P - Y) / batch
+dW2 = A1.T @ dZ2
+db2 = dZ2.sum(axis=0)
+
+dA1 = dZ2 @ W2.T
+dZ1 = dA1 * (Z1 > 0)
+dW1 = X.T @ dZ1
+db1 = dZ1.sum(axis=0)</code></pre>
+  <p>Four gradients &mdash; <code>dW1</code>, <code>db1</code>, <code>dW2</code>, <code>db2</code> &mdash; one for every parameter in the network. That's everything gradient descent needs for a single training step.</p>
+
+  <a class="primary-source" href="http://neuralnetworksanddeeplearning.com/chap2.html#the_four_fundamental_equations_behind_backpropagation" target="_blank" rel="noopener">
+    <span class="label">Primary source</span>
+    <span class="title">Neural Networks and Deep Learning, Chapter 2 &mdash; "The four fundamental equations behind backpropagation"</span>
+    <span class="why">Nielsen's equation BP2 is exactly the two steps you just derived (through the weights, then element-wise through the activation's derivative), written for a general activation function &sigma; rather than ReLU specifically. Worth reading now that you've derived the ReLU case by hand &mdash; the general pattern will be obvious.</span>
+  </a>
+
+  <div class="callout win">
+    <p class="callout-title">Your tangible win</p>
+    <p>Extend <code>code/backprop.py</code> from Lesson 4 with the rest of the backward pass, and verify every gradient's shape against its parameter:</p>
+    <pre><code># ...continuing from Lesson 4's dZ2, dW2, db2...
+
+dA1 = dZ2 @ W2.T
+dZ1 = dA1 * (Z1 > 0)
+dW1 = X.T @ dZ1
+db1 = dZ1.sum(axis=0)
+
+assert dW1.shape == W1.shape
+assert db1.shape == b1.shape
+assert dW2.shape == W2.shape
+assert db2.shape == b2.shape
+print("all gradient shapes match — backward pass is structurally correct")</code></pre>
+    <p>Then try one experiment: set every entry of <code>Z1</code> to a large negative number before computing <code>dZ1</code> (simulating a hidden layer that's "dead" &mdash; always off) and print <code>dZ1</code>. It should be all zeros. This is a real phenomenon called a <strong>dead ReLU</strong>: once a unit's <code>Z1</code> is permanently negative, its gradient is permanently zero and it stops learning entirely. Worth knowing before it happens to you during real training.</p>
+  </div>
+
+  <h2>Check your understanding</h2>
+
+  <div class="quiz">
+    <p class="q">1. Why is <code>dZ1 = dA1 * (Z1 > 0)</code> written with <code>*</code> instead of <code>@</code>?</p>
+    <div class="options">
+      <button class="opt" data-correct="true">ReLU acts element-wise, not mixed</button>
+      <button class="opt">Matmul would be too slow</button>
+      <button class="opt">Both operators give equal results</button>
+      <button class="opt">Softmax already applied element-wise</button>
+    </div>
+    <p class="feedback"></p>
+  </div>
+
+  <div class="quiz">
+    <p class="q">2. A hidden unit had <code>Z1 &lt; 0</code> for every example in the batch. What is its row in <code>dW1</code>?</p>
+    <div class="options">
+      <button class="opt" data-correct="true">All zero, for that unit</button>
+      <button class="opt">Equal to the output gradient</button>
+      <button class="opt">Undefined, causes an error</button>
+      <button class="opt">Larger than other units</button>
+    </div>
+    <p class="feedback"></p>
+  </div>
+
+  <div class="quiz">
+    <p class="q">3. <code>dZ2</code> is <code>(batch, n_out)</code>, <code>W2</code> is <code>(n_hidden, n_out)</code>. Why <code>dZ2 @ W2.T</code> and not <code>dZ2 @ W2</code>?</p>
+    <div class="options">
+      <button class="opt" data-correct="true">Only transposed order matches shapes</button>
+      <button class="opt">Transpose avoids overflow errors</button>
+      <button class="opt">It matches the loss function</button>
+      <button class="opt">Convention only, either works fine</button>
+    </div>
+    <p class="feedback"></p>
+  </div>
+
+  <p class="ask-agent"><strong>Stuck, or curious about more?</strong> Ask your agent &mdash; e.g. "why do dead ReLUs happen in practice and how do people avoid them?" or "what would change here with a sigmoid instead of ReLU?" That's what it's here for.</p>
+
+  <div class="nav-links">
+    <a href="0004-backprop-output-layer.html">&larr; Lesson 4: Backprop, Output Layer</a>
+    <a href="../reference/0005-backprop-hidden-cheatsheet.html">Reference: Backprop Hidden-Layer Cheatsheet</a>
+    <a href="0006-training-loop.html">Next: Lesson 6, gradient descent &#8594;</a>
+  </div>
+</body>

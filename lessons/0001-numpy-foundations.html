@@ -1,0 +1,112 @@
+<title>NumPy Foundations</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/quiz.js" defer></script>
+
+<body class="lesson">
+  <p class="eyebrow">Lesson 1 &middot; Neural Networks from Scratch</p>
+  <h1>NumPy Foundations: The Substrate of Every Layer</h1>
+  <p class="lede">Every weight matrix, activation, and gradient in the network you're about to build is a numpy array. Before writing a single neuron, you need fluency in the handful of array operations everything else sits on top of.</p>
+
+  <h2>Why this comes first</h2>
+  <p>You already know the linear algebra: matrix multiplication, transposes, dot products. That's not the gap. The gap is <em>numpy's</em> way of expressing it &mdash; and one idea, <strong>broadcasting</strong>, that has no direct equivalent in the linear algebra you learned on paper. This lesson maps what you know onto numpy syntax, then spends most of its time on the one genuinely new concept.</p>
+
+  <h2>The ndarray</h2>
+  <p>A numpy array (<code>ndarray</code>) is a grid of numbers of one dtype. Three attributes you'll check constantly:</p>
+  <pre><code>import numpy as np
+
+x = np.array([[1., 2., 3.],
+              [4., 5., 6.]])
+
+x.shape   # (2, 3) -- 2 rows, 3 columns
+x.ndim    # 2
+x.dtype   # dtype('float64')</code></pre>
+  <p class="sidenote">Almost every bug you'll hit while building the network is a shape mismatch. Get in the habit of printing <code>.shape</code> after every new line of array code until it's automatic.</p>
+
+  <h2>Element-wise ops vs. matrix multiplication</h2>
+  <p>This is the single most common source of silent bugs in from-scratch neural network code. In numpy, <code>*</code> is <strong>never</strong> matrix multiplication &mdash; it's element-wise.</p>
+  <table>
+    <tr><th>Syntax</th><th>Computes</th><th>Shape requirement</th></tr>
+    <tr><td><code>A * B</code></td><td>element-wise product</td><td>same shape (or broadcastable)</td></tr>
+    <tr><td><code>A @ B</code></td><td>matrix multiplication</td><td><code>(m, n) @ (n, p) &rarr; (m, p)</code></td></tr>
+    <tr><td><code>A.T</code></td><td>transpose</td><td><code>(m, n) &rarr; (n, m)</code></td></tr>
+  </table>
+  <p>The <code>@</code> operator is exactly the matrix multiplication you already know: inner dimensions must agree, just as on paper.</p>
+
+  <h2>Broadcasting: the new idea</h2>
+  <p>Broadcasting lets numpy apply an operation between arrays of <em>different</em> shapes, by virtually stretching the smaller one &mdash; without copying data or writing a loop. The rule: compare shapes from the right; two dimensions are compatible if they're equal, or one of them is 1.</p>
+  <pre><code>Z = np.random.randn(32, 5)   # a batch of 32 examples, 5 features each
+b = np.zeros(5)              # one bias per feature
+
+Z + b   # shape (32, 5) -- b is added to every one of the 32 rows</code></pre>
+  <p>This is precisely how a single bias vector gets added to an entire batch in one line, with no explicit loop over rows. You'll use this pattern every time you add a bias term.</p>
+
+  <a class="primary-source" href="https://numpy.org/doc/stable/user/quickstart.html" target="_blank" rel="noopener">
+    <span class="label">Primary source</span>
+    <span class="title">NumPy quickstart &mdash; official documentation</span>
+    <span class="why">Read the sections on "The Basics" and "Broadcasting rules" (skip the rest for now). If it moves too fast, the <a href="https://numpy.org/doc/stable/user/absolute_beginners.html" target="_blank" rel="noopener">absolute-basics version</a> is a gentler on-ramp.</span>
+  </a>
+
+  <div class="callout win">
+    <p class="callout-title">Your tangible win</p>
+    <p>If numpy isn't installed yet, run <code>pip install numpy</code> in your terminal first. Then, in VS Code, create <code>code/forward_pass.py</code> and write the forward pass of <em>one</em> linear layer plus a ReLU activation &mdash; the exact computation every layer of your eventual network will perform:</p>
+    <pre><code>import numpy as np
+
+np.random.seed(0)
+
+n_in, n_out = 4, 3
+x = np.random.randn(n_in)              # one input example
+W = np.random.randn(n_out, n_in) * 0.1  # weight matrix
+b = np.zeros(n_out)                     # bias vector
+
+z = W @ x + b            # linear step
+a = np.maximum(z, 0)     # ReLU activation
+
+print("x shape:", x.shape)
+print("W shape:", W.shape)
+print("z:", z)
+print("a (after ReLU):", a)</code></pre>
+    <p>Run it. Before you do, predict <code>z.shape</code> and <code>a.shape</code> on paper from the matmul rule above &mdash; then check yourself against the output. If they match, you've just computed the exact operation that happens in every layer, forward pass, of the network you're about to build.</p>
+  </div>
+
+  <h2>Check your understanding</h2>
+
+  <div class="quiz">
+    <p class="q">1. In numpy, what does <code>A * B</code> compute for two same-shaped arrays?</p>
+    <div class="options">
+      <button class="opt" data-correct="true">Elementwise multiplication result</button>
+      <button class="opt">Standard matrix product</button>
+      <button class="opt">Matrix transpose product</button>
+      <button class="opt">Outer vector product</button>
+    </div>
+    <p class="feedback"></p>
+  </div>
+
+  <div class="quiz">
+    <p class="q">2. A weight matrix <code>W</code> has shape <code>(10, 784)</code>. Input <code>x</code> has shape <code>(784,)</code>. What shape is <code>W @ x</code>?</p>
+    <div class="options">
+      <button class="opt" data-correct="true">A length-ten vector</button>
+      <button class="opt">A length-784 vector</button>
+      <button class="opt">A ten-by-ten matrix</button>
+      <button class="opt">A 784-by-784 matrix</button>
+    </div>
+    <p class="feedback"></p>
+  </div>
+
+  <div class="quiz">
+    <p class="q">3. Bias <code>b</code> has shape <code>(5,)</code>. Batch <code>Z</code> has shape <code>(32, 5)</code>. What does <code>Z + b</code> do?</p>
+    <div class="options">
+      <button class="opt" data-correct="true">Broadcasts across every row</button>
+      <button class="opt">Raises a shape error</button>
+      <button class="opt">Broadcasts across every column</button>
+      <button class="opt">Only adds to first row</button>
+    </div>
+    <p class="feedback"></p>
+  </div>
+
+  <p class="ask-agent"><strong>Stuck, or curious about more?</strong> Ask your agent &mdash; e.g. "why isn't <code>*</code> matrix multiplication?" or "what would break if I forgot the ReLU?" That's what it's here for.</p>
+
+  <div class="nav-links">
+    <a href="../reference/0001-numpy-foundations-cheatsheet.html">&#8594; Reference: NumPy Foundations Cheatsheet</a>
+    <a href="0002-forward-pass.html">Next: Lesson 2, the forward pass &#8594;</a>
+  </div>
+</body>

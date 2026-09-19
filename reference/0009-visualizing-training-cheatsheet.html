@@ -1,0 +1,39 @@
+<title>Visualizing Training Cheatsheet</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+  body.lesson { max-width: 38rem; }
+  @media print { body.lesson { padding: 0.5rem; font-size: 0.95rem; } .eyebrow, .ask-agent, .nav-links { display: none; } }
+</style>
+
+<body class="lesson">
+  <p class="eyebrow">Reference &middot; Neural Networks from Scratch</p>
+  <h1>Visualizing Training Cheatsheet</h1>
+  <p class="lede">Recording history and plotting loss/accuracy curves. From <a href="../lessons/0009-visualizing-training.html">Lesson 9</a>.</p>
+
+  <h2>Record during training</h2>
+  <pre><code>history = {"train_loss": [], "train_acc": [], "test_acc": []}
+# each epoch:
+history["train_loss"].append(loss)
+history["train_acc"].append(acc)
+history["test_acc"].append(test_acc)   # evaluate X_test every epoch too</code></pre>
+
+  <h2>Plot</h2>
+  <pre><code>fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+axes[0].plot(history["train_loss"]); axes[0].set_title("Training Loss")
+axes[1].plot(history["train_acc"], label="train")
+axes[1].plot(history["test_acc"], label="test")
+axes[1].set_title("Accuracy"); axes[1].legend()
+plt.savefig(Path(__file__).parent / "training_curves.png")</code></pre>
+
+  <h2>Reading the shapes</h2>
+  <table>
+    <tr><th>Pattern</th><th>Meaning</th></tr>
+    <tr><td>Loss: smooth drop, then flat</td><td>working as intended</td></tr>
+    <tr><td>Loss: barely moves</td><td>learning rate too low / already converged</td></tr>
+    <tr><td>Loss: spiky, jumps around</td><td>learning rate too high</td></tr>
+    <tr><td>Accuracy: train &gg; test</td><td>overfitting</td></tr>
+    <tr><td>Accuracy: train &asymp; test, both low</td><td>underfitting &mdash; more capacity or epochs</td></tr>
+  </table>
+
+  <p class="sidenote">Source for reading these shapes in depth: <a href="https://cs231n.github.io/neural-networks-3/" target="_blank" rel="noopener">CS231n, "Babysitting the learning process."</a></p>
+</body>
